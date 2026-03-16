@@ -71,22 +71,20 @@ class IpInfoNotifier extends _$IpInfoNotifier with AppLogger {
   }
 }
 
-@Riverpod(keepAlive: true)
-class ActiveProxyNotifier extends _$ActiveProxyNotifier with AppLogger {
+@riverpod
+class ActiveProxyNotifier extends _$ActiveProxyNotifier {
   @override
-  Stream<OutboundInfo> build() async* {
-    // ref.disposeDelay(const Duration(seconds: 20));
-    ref.watch(coreRestartSignalProvider);
-    final serviceRunning = await ref.watch(serviceRunningProvider.future);
-    if (!serviceRunning) {
-      throw const ServiceNotRunning();
+  Stream<ProxyEntity?> build() async* {
+    final stream = ref.watch(proxyRepositoryProvider).watchActiveProxy();
+    await for (final proxy in stream) {
+      // ПЕРЕХВАТЧИК: Если ядро отдало балансер, принудительно переключаем на Lowest (auto)
+      if (proxy != null && proxy.tag == "balance") {
+        ref.read(proxyRepositoryProvider).selectProxy("PROXY", "auto").run();
+      }
+      yield proxy;
     }
-    final proxyprovider = ref.watch(proxyRepositoryProvider);
-    yield* proxyprovider
-        .watchActiveProxies()
-        .map((event) => event.getOrElse((l) => List<OutboundGroup>.empty()))
-        .map((event) => event.firstOrNull?.items.first ?? OutboundInfo());
   }
+}
 
   final _urlTestThrottler = Throttler(const Duration(seconds: 1));
 
