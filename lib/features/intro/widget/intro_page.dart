@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+import 'package:hiddify/features/profile/model/profile_entity.dart';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -177,7 +179,8 @@ class IntroPage extends HookConsumerWidget with PresLogger {
         label: Text(t.common.start, style: theme.textTheme.titleMedium),
         onPressed: () async {
           if (isStarting.value) return;
-          isStarting.value = true;
+          isStarting.value = true; // Кнопка превращается в спиннер загрузки
+          
           if (!ref.read(analyticsControllerProvider).requireValue) {
             loggy.info("disabling analytics per user request");
             try {
@@ -186,6 +189,23 @@ class IntroPage extends HookConsumerWidget with PresLogger {
               loggy.error("could not disable analytics", error, stackTrace);
             }
           }
+
+          // === ВАШ КОД: АВТОМАТИЧЕСКОЕ ДОБАВЛЕНИЕ ПРОФИЛЯ ===
+          try {
+            loggy.info("Auto-fetching initial profile...");
+            await ref.read(addProfileNotifierProvider.notifier).addManual(
+              url: "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_SS%2BAll_RUS.txt",
+              userOverride: const UserOverride(
+                name: "VPN Russia",   // Имя профиля
+                updateInterval: 4,    // Жестко задаем автообновление каждые 4 часа
+              ),
+            );
+          } catch (e) {
+            loggy.error("Failed to auto-add profile", e);
+          }
+          // === КОНЕЦ ВАШЕГО КОДА ===
+
+          // Завершаем этап интро и переходим на главный экран
           await ref.read(Preferences.introCompleted.notifier).update(true);
         },
       ),
