@@ -58,7 +58,7 @@ abstract class ConfigOptions {
 
   static final remoteDnsAddress = PreferencesNotifier.create<String, String>(
     "remote-dns-address",
-    "https://dns.cloudflare.com/dns-query", // ИЗМЕНЕНО: Защищенный DNS
+    "https://8.8.8.8/dns-query", // ИЗМЕНЕНО: Защищенный DNS
     possibleValues: List.of([
       "local",
       // "udp://223.5.5.5",
@@ -82,7 +82,7 @@ abstract class ConfigOptions {
 
   static final directDnsAddress = PreferencesNotifier.create<String, String>(
     "direct-dns-address",
-    "udp://1.1.1.1",
+    "local",
     possibleValues: List.of([
       "local",
       "udp://223.5.5.5",
