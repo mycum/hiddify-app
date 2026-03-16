@@ -75,7 +75,7 @@ abstract class ConfigOptions {
 
   static final remoteDnsDomainStrategy = PreferencesNotifier.create<DomainStrategy, String>(
     "remote-dns-domain-strategy",
-    DomainStrategy.useIpv4, // ИЗМЕНЕНО: Принудительный IPv4
+    DomainStrategy.ipv4Only, // ИСПРАВЛЕНО: было useIpv4
     mapFrom: (value) => DomainStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
@@ -100,7 +100,7 @@ abstract class ConfigOptions {
 
   static final directDnsDomainStrategy = PreferencesNotifier.create<DomainStrategy, String>(
     "direct-dns-domain-strategy",
-    DomainStrategy.useIpv4, // ИЗМЕНЕНО: Принудительный IPv4
+    DomainStrategy.ipv4Only, // ИСПРАВЛЕНО: было useIpv4
     mapFrom: (value) => DomainStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
