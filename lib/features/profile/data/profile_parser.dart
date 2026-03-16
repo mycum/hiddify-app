@@ -378,7 +378,10 @@ class ProfileParser {
           (key, value) => !allowedOverrideConfigs.contains(key) || value == null || value.toString().isEmpty,
         );
 
-        final profileOverrideStr = jsonEncode({for (final key in headers.keys) key: headers[key]});
+        // Создаем жесткий оверрайд, отключающий балансировщик (заставляя использовать Lowest)
+        final overrideMap = {for (final key in headers.keys) key: headers[key]};
+        overrideMap['balancer-strategy'] = 'none'; // Отключаем балансировщик!
+        final profileOverrideStr = jsonEncode(overrideMap);
 
         return profile.map(
           remote: (rp) => rp.copyWith(
