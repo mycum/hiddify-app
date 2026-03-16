@@ -97,15 +97,23 @@ class AppProxyDao extends DatabaseAccessor<Db> with _$AppProxyDaoMixin, InfraLog
 
     return query.watch().map((rows) {
       final dbPkgs = rows.map((row) => row.read(appProxyEntries.pkgName)!).toList();
-      // ЖЕСТКО ДОБАВЛЯЕМ ТЕЛЕГРАМ ЕСЛИ РЕЖИМ INCLUDE
-      if (mode == AppProxyMode.include) {
+      
+      // ЖЕСТКО ДОБАВЛЯЕМ ТЕЛЕГРАМ, ЕСЛИ ВКЛЮЧЕН РЕЖИМ INCLUDE
+      if (mode.name == 'include') {
         final tgPkgs = [
-          "org.telegram.messenger", "org.thunderdog.challegram", "org.telegram.plus", 
-          "org.telegram.messenger.web", "nekox.messenger", "org.mdgram.messenger", 
-          "ir.ilmili.telegraph", "exv.telegram.messenger", "tw.nekomimi.nekogram"
+          "org.telegram.messenger", 
+          "org.thunderdog.challegram", 
+          "org.telegram.plus", 
+          "org.telegram.messenger.web", 
+          "nekox.messenger", 
+          "org.mdgram.messenger", 
+          "ir.ilmili.telegraph", 
+          "exv.telegram.messenger", 
+          "tw.nekomimi.nekogram"
         ];
-        return {...dbPkgs, ...tgPkgs}.toList(); // Объединяем и удаляем дубликаты
+        return {...dbPkgs, ...tgPkgs}.toList(); // Объединяем списки и удаляем дубликаты
       }
+      
       return dbPkgs;
     });
   }
