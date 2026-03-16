@@ -25,7 +25,7 @@ abstract class ConfigOptions {
 
   static final balancerStrategy = PreferencesNotifier.create<BalancerStrategy, String>(
     "balancer-strategy",
-    BalancerStrategy.roundRobin,
+    BalancerStrategy.consistentHash, // ИЗМЕНЕНО: Балансировщик для стабильности
     mapFrom: (value) => BalancerStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
@@ -37,7 +37,9 @@ abstract class ConfigOptions {
     mapTo: (value) => value.name,
   );
   static final useXrayCoreWhenPossible = PreferencesNotifier.create<bool, bool>("use-xray-core-when-possible", false);
-  static final blockAds = PreferencesNotifier.create<bool, bool>("block-ads", false);
+  
+  static final blockAds = PreferencesNotifier.create<bool, bool>("block-ads", true); // ИЗМЕНЕНО: Включена блокировка рекламы
+  
   static final logLevel = PreferencesNotifier.create<LogLevel, String>(
     "log-level",
     LogLevel.warn,
@@ -45,7 +47,7 @@ abstract class ConfigOptions {
     mapTo: (value) => value.name,
   );
 
-  static final resolveDestination = PreferencesNotifier.create<bool, bool>("resolve-destination", false);
+  static final resolveDestination = PreferencesNotifier.create<bool, bool>("resolve-destination", true); // ИЗМЕНЕНО: Включено определение адреса назначения
 
   static final ipv6Mode = PreferencesNotifier.create<IPv6Mode, String>(
     "ipv6-mode",
@@ -56,7 +58,7 @@ abstract class ConfigOptions {
 
   static final remoteDnsAddress = PreferencesNotifier.create<String, String>(
     "remote-dns-address",
-    "tcp://8.8.8.8",
+    "https://dns.cloudflare.com/dns-query", // ИЗМЕНЕНО: Защищенный DNS
     possibleValues: List.of([
       "local",
       // "udp://223.5.5.5",
@@ -73,7 +75,7 @@ abstract class ConfigOptions {
 
   static final remoteDnsDomainStrategy = PreferencesNotifier.create<DomainStrategy, String>(
     "remote-dns-domain-strategy",
-    DomainStrategy.auto,
+    DomainStrategy.useIpv4, // ИЗМЕНЕНО: Принудительный IPv4
     mapFrom: (value) => DomainStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
@@ -98,7 +100,7 @@ abstract class ConfigOptions {
 
   static final directDnsDomainStrategy = PreferencesNotifier.create<DomainStrategy, String>(
     "direct-dns-domain-strategy",
-    DomainStrategy.auto,
+    DomainStrategy.useIpv4, // ИЗМЕНЕНО: Принудительный IPv4
     mapFrom: (value) => DomainStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
@@ -138,8 +140,9 @@ abstract class ConfigOptions {
 
   static final connectionTestUrl = PreferencesNotifier.create<String, String>(
     "connection-test-url",
-    "http://captive.apple.com/hotspot-detect.html",
+    "http://149.154.167.51", // ИЗМЕНЕНО: IP Телеграма для URL-Test
     possibleValues: List.of([
+      "http://149.154.167.51", // Добавлено в список значений
       "http://connectivitycheck.gstatic.com/generate_204",
       "http://www.gstatic.com/generate_204",
       "https://www.gstatic.com/generate_204",
@@ -168,7 +171,7 @@ abstract class ConfigOptions {
     validator: (value) => isPort(value.toString()),
   );
 
-  static final bypassLan = PreferencesNotifier.create<bool, bool>("bypass-lan", false);
+  static final bypassLan = PreferencesNotifier.create<bool, bool>("bypass-lan", true); // ИЗМЕНЕНО: Обход локальной сети включен
 
   static final allowConnectionFromLan = PreferencesNotifier.create<bool, bool>("allow-connection-from-lan", false);
 
