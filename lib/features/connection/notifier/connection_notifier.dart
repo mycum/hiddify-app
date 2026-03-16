@@ -17,7 +17,6 @@ import 'package:in_app_review/in_app_review.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
-import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 
 part 'connection_notifier.g.dart';
 
