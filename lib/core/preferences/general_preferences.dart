@@ -45,7 +45,17 @@ abstract class Preferences {
 
   static final includeApps = PreferencesNotifier.create<List<String>, List<String>>(
     "per_app_proxy_include_list",
-    <String>[],
+    <String>[
+      "org.telegram.messenger",      // Официальный Telegram
+      "org.thunderdog.challegram",   // Telegram X
+      "org.telegram.plus",           // Plus Messenger
+      "org.telegram.messenger.web",  // Telegram FOSS (F-Droid)
+      "nekox.messenger",             // Nekogram
+      "org.mdgram.messenger",        // MDGram
+      "ir.ilmili.telegraph",         // Graph Messenger
+      "exv.telegram.messenger",      // ExteraGram
+      "tw.nekomimi.nekogram",        // NekoX
+    ], // ИЗМЕНЕНО: Захардкоженные пакеты для проксирования
   );
 
   static final excludeApps = PreferencesNotifier.create<List<String>, List<String>>(
@@ -89,7 +99,7 @@ abstract class Preferences {
 
   static final perAppProxyMode = PreferencesNotifier.create<PerAppProxyMode, String>(
     "per_app_proxy_mode",
-    PerAppProxyMode.off,
+    PerAppProxyMode.include, // ИЗМЕНЕНО: По умолчанию режим "Проксировать выбранные" (Include)
     mapFrom: PerAppProxyMode.values.byName,
     mapTo: (value) => value.name,
   );
