@@ -117,7 +117,7 @@ class DebugModeNotifier extends _$DebugModeNotifier {
   late final _pref = PreferencesEntry(
     preferences: ref.watch(sharedPreferencesProvider).requireValue,
     key: "debug_mode",
-    defaultValue: ref.read(environmentProvider) == Environment.dev,
+    defaultValue: false, // ИЗМЕНЕНО: Жестко отключаем отладку
   );
 
   @override
