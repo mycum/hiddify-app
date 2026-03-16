@@ -1,130 +1,193 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:hiddify/core/app_info/app_info_provider.dart';
-import 'package:hiddify/core/model/environment.dart';
-import 'package:hiddify/core/model/region.dart';
-import 'package:hiddify/core/preferences/actions_at_closing.dart';
+import 'dart:io';
 
-import 'package:hiddify/core/preferences/preferences_provider.dart';
-import 'package:hiddify/core/utils/preferences_utils.dart';
-import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
-import 'package:hiddify/features/window/notifier/window_notifier.dart';
-import 'package:hiddify/utils/platform_utils.dart';
+import 'package:hiddify/core/haptic/haptic_service.dart';
+import 'package:hiddify/core/localization/translations.dart';
+import 'package:hiddify/core/preferences/general_preferences.dart';
+import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
+import 'package:hiddify/features/connection/data/connection_data_providers.dart';
+import 'package:hiddify/features/connection/data/connection_repository.dart';
+import 'package:hiddify/features/connection/model/connection_failure.dart';
+import 'package:hiddify/features/connection/model/connection_status.dart';
+import 'package:hiddify/features/profile/model/profile_entity.dart';
+import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/hiddifycore/init_signal.dart';
+import 'package:hiddify/utils/utils.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:rxdart/rxdart.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
-part 'general_preferences.g.dart';
+part 'connection_notifier.g.dart';
 
-bool _debugIntroPage = false;
+@Riverpod(keepAlive: true)
+class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
+  @override
+  Stream<ConnectionStatus> build() async* {
+    if (Platform.isIOS) {
+      await _connectionRepo.setup().mapLeft((l) {
+        loggy.error("error setting up connection repository", l);
+      }).run();
+    }
 
-abstract class Preferences {
-  static final introCompleted = PreferencesNotifier.create(
-    "intro_completed",
-    false,
-    overrideValue: _debugIntroPage && kDebugMode ? false : null,
-  );
+    listenSelf((previous, next) async {
+      if (previous == next) return;
+      if (previous case AsyncData(:final value) when !value.isConnected) {
+        if (next case AsyncData(value: final Connected _)) {
+          await ref.read(hapticServiceProvider.notifier).heavyImpact();
 
-  // Null means that auto selection has not been performed yet.
-  static final autoAppsSelectionRegion = PreferencesNotifier.create<Region?, String?>(
-    "auto_apps_selection_region",
-    null,
-    mapFrom: (value) => value == null || value.isEmpty ? null : Region.values.byName(value),
-    mapTo: (value) => value == null ? '' : value.name,
-  );
+          if (Platform.isAndroid && !ref.read(Preferences.storeReviewedByUser)) {
+            if (await InAppReview.instance.isAvailable()) {
+              InAppReview.instance.requestReview();
+              ref.read(Preferences.storeReviewedByUser.notifier).update(true);
+            }
+          }
+        }
+      }
+    });
 
-  static final autoAppsSelectionUpdateInterval = PreferencesNotifier.create<double, double>(
-    "auto_apps_selection_update_interval",
-    1.0,
-  );
+    ref.listen(activeProfileProvider.select((value) => value.asData?.value), (previous, next) async {
+      if (previous == null) return;
+      final shouldReconnect = next == null || previous.id != next.id;
+      if (shouldReconnect) {
+        await reconnect(next);
+      }
+    });
+    ref.watch(coreRestartSignalProvider);
 
-  static final autoAppsSelectionLastUpdate = PreferencesNotifier.create<DateTime?, String?>(
-    "auto_apps_selection_last_update",
-    null,
-    mapFrom: (value) => value == null ? null : DateTime.tryParse(value),
-    mapTo: (value) => value?.toIso8601String(),
-  );
+    yield* _connectionRepo.watchConnectionStatus().doOnData((event) {
+      if (event case Disconnected(connectionFailure: final _?) when PlatformUtils.isDesktop) {
+        ref.read(Preferences.startedByUser.notifier).update(false);
+      }
+      loggy.info("connection status: ${event.format()}");
+    });
+  }
 
-  static final includeApps = PreferencesNotifier.create<List<String>, List<String>>(
-    "per_app_proxy_include_list",
-    <String>[],
-  );
+  ConnectionRepository get _connectionRepo => ref.read(connectionRepositoryProvider);
 
-  static final excludeApps = PreferencesNotifier.create<List<String>, List<String>>(
-    "per_app_proxy_exclude_list",
-    <String>[],
-  );
+  Future<void> mayConnect() async {
+    if (state case AsyncData(:final value)) {
+      if (value case Disconnected()) return _connect();
+    }
+  }
 
-  static final windowMaximized = PreferencesNotifier.create<bool, bool>("window_maximized", false);
+  Future<void> toggleConnection() async {
+    final haptic = ref.read(hapticServiceProvider.notifier);
+    if (state case AsyncError()) {
+      await haptic.lightImpact();
+      await _connect();
+    } else if (state case AsyncData(:final value)) {
+      switch (value) {
+        case Disconnected():
+          await haptic.lightImpact();
+          await ref.read(Preferences.startedByUser.notifier).update(true);
+          await _connect();
+        case Connected():
+          // default:
+          await haptic.mediumImpact();
+          await ref.read(Preferences.startedByUser.notifier).update(false);
+          await _disconnect();
+        default:
+          loggy.warning("switching status, debounce");
+      }
+    }
+  }
 
-  static final windowPosition = PreferencesNotifier.create<Offset?, String?>(
-    "window_position",
-    null,
-    mapFrom: (value) {
-      if (value == null) return null;
-      final list = value.split(',').map((e) => double.tryParse(e)).toList();
-      return Offset(list[0]!, list[1]!);
-    },
-    mapTo: (value) {
-      if (value == null) return null;
-      return "${value.dx},${value.dy}";
-    },
-  );
+  Future<void> reconnect(ProfileEntity? profile) async {
+    if (state case AsyncData(:final value) when value == const Connected()) {
+      if (profile == null) {
+        loggy.info("no active profile, disconnecting");
+        return _disconnect();
+      }
+      loggy.info("active profile changed, reconnecting");
+      await ref.read(Preferences.startedByUser.notifier).update(true);
+      await _connectionRepo.reconnect(profile, ref.read(Preferences.disableMemoryLimit)).mapLeft((err) async {
+        loggy.warning("error reconnecting", err);
+        state = AsyncError(err, StackTrace.current);
+        await ref
+            .read(dialogNotifierProvider.notifier)
+            .showCustomAlertFromErr(err.present(ref.read(translationsProvider).requireValue));
+      }).run();
+    }
+  }
 
-  static final windowSize = PreferencesNotifier.create<Size, String>(
-    "window_size",
-    defaultWindowSize,
-    mapFrom: (value) {
-      final list = value.split(',').map((e) => double.tryParse(e)).toList();
-      return Size(list[0]!, list[1]!);
-    },
-    mapTo: (value) => "${value.width},${value.height}",
-  );
+  Future<void> abortConnection() async {
+    if (state case AsyncData(:final value)) {
+      switch (value) {
+        case Connected() || Connecting():
+          loggy.debug("aborting connection");
+          await _disconnect();
+        default:
+      }
+    }
+  }
 
-  static final silentStart = PreferencesNotifier.create<bool, bool>("silent_start", false);
+  final _singleStart = SingleCall();
 
-  static final disableMemoryLimit = PreferencesNotifier.create<bool, bool>(
-    "disable_memory_limit",
-    // disable memory limit on desktop by default
-    PlatformUtils.isDesktop,
-  );
+  Future<void> _connect() async {
+    _singleStart.run(
+      () async {
+        await _connectThrottled();
+      },
+      onIgnored: () {
+        loggy.debug("connect called while another connect/disconnect is still running, ignoring");
+      },
+    );
+  }
 
-  static final perAppProxyMode = PreferencesNotifier.create<PerAppProxyMode, String>(
-    "per_app_proxy_mode",
-    PerAppProxyMode.off,
-    mapFrom: PerAppProxyMode.values.byName,
-    mapTo: (value) => value.name,
-  );
+  Future<void> _connectThrottled() async {
+    final activeProfile = await ref.read(activeProfileProvider.future);
+    if (activeProfile == null) {
+      loggy.info("no active profile, not connecting");
+      return;
+    }
+    await _connectionRepo.connect(activeProfile, ref.read(Preferences.disableMemoryLimit)).mapLeft((
+      ConnectionFailure err,
+    ) async {
+      loggy.warning("error connecting", err);
+      //Go err is not normal object to see the go errors are string and need to be dumped
+      await ref
+          .read(dialogNotifierProvider.notifier)
+          .showCustomAlertFromErr(err.present(ref.read(translationsProvider).requireValue));
+      loggy.warning(err);
+      if (err.toString().contains("panic")) {
+        await Sentry.captureException(Exception(err.toString()));
+      }
+      await ref.read(Preferences.startedByUser.notifier).update(false);
+      state = AsyncError(err, StackTrace.current);
+    }).run();
+  }
 
-  static final markNewProfileActive = PreferencesNotifier.create<bool, bool>("mark_new_profile_active", true);
-
-  static final dynamicNotification = PreferencesNotifier.create<bool, bool>("dynamic_notification", true);
-
-  static final autoCheckIp = PreferencesNotifier.create<bool, bool>("auto_check_ip", true);
-
-  static final startedByUser = PreferencesNotifier.create<bool, bool>("started_by_user", false);
-
-  static final storeReviewedByUser = PreferencesNotifier.create<bool, bool>("store_reviewed_by_user", false);
-
-  static final actionAtClose = PreferencesNotifier.create<ActionsAtClosing, String>(
-    "action_at_close",
-    ActionsAtClosing.ask,
-    mapFrom: ActionsAtClosing.values.byName,
-    mapTo: (value) => value.name,
-  );
+  Future<void> _disconnect() async {
+    await _connectionRepo.disconnect().mapLeft((err) {
+      loggy.warning("error disconnecting", err);
+      ref
+          .read(dialogNotifierProvider.notifier)
+          .showCustomAlertFromErr(err.present(ref.read(translationsProvider).requireValue));
+      state = AsyncError(err, StackTrace.current);
+    }).run();
+  }
 }
 
 @Riverpod(keepAlive: true)
-class DebugModeNotifier extends _$DebugModeNotifier {
-  late final _pref = PreferencesEntry(
-    preferences: ref.watch(sharedPreferencesProvider).requireValue,
-    key: "debug_mode",
-    defaultValue: false, // ИЗМЕНЕНО: Жестко отключаем отладку
-  );
+Future<bool> serviceRunning(Ref ref) async {
+  // ref.watch(coreRestartSignalProvider);
+  return await ref
+      .watch(connectionNotifierProvider.selectAsync((data) => data.isConnected))
+      .onError((error, stackTrace) => false);
+}
 
-  @override
-  bool build() => _pref.read();
+class SingleCall {
+  bool _running = false;
 
-  Future<void> update(bool value) {
-    state = value;
-    return _pref.write(value);
+  Future<T> run<T>(Future<T> Function() task, {required T onIgnored}) async {
+    if (_running) return onIgnored;
+
+    _running = true;
+    try {
+      return await task();
+    } finally {
+      _running = false;
+    }
   }
 }
