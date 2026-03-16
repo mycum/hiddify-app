@@ -17,6 +17,7 @@ import 'package:in_app_review/in_app_review.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 
 part 'connection_notifier.g.dart';
 
@@ -35,6 +36,28 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
       if (previous case AsyncData(:final value) when !value.isConnected) {
         if (next case AsyncData(value: final Connected _)) {
           await ref.read(hapticServiceProvider.notifier).heavyImpact();
+
+          // ---> НАШ ПАТЧ ДЛЯ АВТОВЫБОРА LOWEST <---
+          Future.delayed(const Duration(milliseconds: 1500), () async {
+            try {
+              final proxyRepo = ref.read(proxyRepositoryProvider);
+              final groupEither = await proxyRepo.watchProxies().first;
+              
+              groupEither.match(
+                (err) => loggy.warning("Cannot fetch proxy groups: $err"),
+                (group) {
+                  if (group != null) {
+                    // В Hiddify 4.x встроенный URL-Test всегда имеет тег 'auto'
+                    loggy.info("Forcing auto (Lowest) proxy selection...");
+                    proxyRepo.selectProxy(group.tag, "auto").run();
+                  }
+                }
+              );
+            } catch (e) {
+              loggy.error("Failed to force auto proxy", e);
+            }
+          });
+          // ---> КОНЕЦ ПАТЧА <---
 
           if (Platform.isAndroid && !ref.read(Preferences.storeReviewedByUser)) {
             if (await InAppReview.instance.isAvailable()) {
