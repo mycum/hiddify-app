@@ -20,7 +20,7 @@ import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
-import 'package:hiddify/features/proxy/data/proxy_repository.dart';
+import 'package:hiddify/features/proxy/data/proxy_data_providers.dart';
 
 // TODO: rewrite
 class ConnectionButton extends HookConsumerWidget {
