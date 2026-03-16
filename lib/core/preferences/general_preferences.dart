@@ -43,18 +43,25 @@ abstract class Preferences {
     mapTo: (value) => value?.toIso8601String(),
   );
 
+  static final perAppProxyMode = PreferencesNotifier.create<PerAppProxyMode, String>(
+    "per_app_proxy_mode",
+    PerAppProxyMode.include, // ИЗМЕНЕНО: По умолчанию режим "Проксировать выбранные" (Include)
+    mapFrom: PerAppProxyMode.values.byName,
+    mapTo: (value) => value.name,
+  );
+
   static final includeApps = PreferencesNotifier.create<List<String>, List<String>>(
-    "per_app_proxy_include_list",
-    <String>[
-      "org.telegram.messenger",      // Официальный Telegram
-      "org.thunderdog.challegram",   // Telegram X
-      "org.telegram.plus",           // Plus Messenger
-      "org.telegram.messenger.web",  // Telegram FOSS (F-Droid)
-      "nekox.messenger",             // Nekogram
-      "org.mdgram.messenger",        // MDGram
-      "ir.ilmili.telegraph",         // Graph Messenger
-      "exv.telegram.messenger",      // ExteraGram
-      "tw.nekomimi.nekogram",        // NekoX
+    "include-apps",
+    [
+      "org.telegram.messenger",
+      "org.telegram.messenger.web",
+      "org.telegram.plus",
+      "org.thunderdog.challegram",
+      "nekox.messenger",
+      "org.mdgram.messenger",
+      "ir.ilmili.telegraph",
+      "exv.telegram.messenger",
+      "tw.nekomimi.nekogram",
     ], // ИЗМЕНЕНО: Захардкоженные пакеты для проксирования
   );
 
@@ -97,12 +104,7 @@ abstract class Preferences {
     PlatformUtils.isDesktop,
   );
 
-  static final perAppProxyMode = PreferencesNotifier.create<PerAppProxyMode, String>(
-    "per_app_proxy_mode",
-    PerAppProxyMode.include, // ИЗМЕНЕНО: По умолчанию режим "Проксировать выбранные" (Include)
-    mapFrom: PerAppProxyMode.values.byName,
-    mapTo: (value) => value.name,
-  );
+  
 
   static final markNewProfileActive = PreferencesNotifier.create<bool, bool>("mark_new_profile_active", true);
 
