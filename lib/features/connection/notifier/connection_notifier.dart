@@ -38,18 +38,20 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
           await ref.read(hapticServiceProvider.notifier).heavyImpact();
 
           // ---> НАШ ПАТЧ ДЛЯ АВТОВЫБОРА LOWEST <---
-          Future.delayed(const Duration(milliseconds: 1500), () async {
+          Future.delayed(const Duration(milliseconds: 2000), () async {
             try {
               final proxyRepo = ref.read(proxyRepositoryProvider);
               final groupEither = await proxyRepo.watchProxies().first;
               
-              groupEither.match(
-                (err) => loggy.warning("Cannot fetch proxy groups: $err"),
-                (group) {
+              await groupEither.match(
+                (err) async => loggy.warning("Cannot fetch proxy groups"),
+                (group) async {
                   if (group != null) {
-                    // В Hiddify 4.x встроенный URL-Test всегда имеет тег 'auto'
-                    loggy.info("Forcing auto (Lowest) proxy selection...");
-                    proxyRepo.selectProxy(group.tag, "auto").run();
+                    loggy.info("Forcing auto (Lowest)...");
+                    // Теперь мы дожидаемся ответа от ядра
+                    await proxyRepo.selectProxy(group.tag, "auto").run();
+                    // Дублируем для дефолтной группы
+                    await proxyRepo.selectProxy("PROXY", "auto").run();
                   }
                 }
               );
