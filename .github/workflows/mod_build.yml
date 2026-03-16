@@ -1,0 +1,79 @@
+name: Build Modded APK and EXE
+on:
+  workflow_dispatch: # Позволяет запускать сборку вручную по кнопке
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android-apk
+            os: ubuntu-latest
+          - platform: windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Java (For Android)
+        if: startsWith(matrix.platform,'android')
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 17
+
+      - name: Setup Dependencies
+        shell: bash
+        run: |
+          make ${{ matrix.platform }}-install-deps
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+
+      - name: Generate Dummy Keystore (For Android)
+        if: startsWith(matrix.platform,'android')
+        shell: bash
+        run: |
+          keytool -genkey -v -keystore android/key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias modkey -dname "CN=Mod, OU=Mod, O=Mod, L=Mod, S=Mod, C=US" -storepass password -keypass password
+          echo "storeFile=$(pwd)/android/key.jks" > android/key.properties
+          echo "storePassword=password" >> android/key.properties
+          echo "keyPassword=password" >> android/key.properties
+          echo "keyAlias=modkey" >> android/key.properties
+
+      - name: Prepare Core
+        shell: bash
+        run: make ${{ matrix.platform }}-prepare
+
+      - name: Build Application
+        shell: bash
+        run: make ${{ matrix.platform }}-release
+
+      - name: Collect Windows Artifacts
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "out" -Force | Out-Null
+          $files = Get-ChildItem -Path dist -Recurse -Include *.exe, *.zip
+          foreach ($file in $files) {
+              Copy-Item -Path $file.FullName -Destination "out\" -Force
+          }
+
+      - name: Collect Android Artifacts
+        if: matrix.platform == 'android-apk'
+        shell: bash
+        run: |
+          mkdir out
+          cp ./build/app/outputs/flutter-apk/*.apk out/ || true
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-build
+          path: ./out/
+          retention-days: 5
