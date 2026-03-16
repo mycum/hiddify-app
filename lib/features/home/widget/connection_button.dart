@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -21,8 +20,6 @@ import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
-import 'package:hiddify/core/preferences/general_preferences.dart';
-import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 
 class ConnectionButton extends HookConsumerWidget {
   const ConnectionButton({super.key});
@@ -53,33 +50,6 @@ class ConnectionButton extends HookConsumerWidget {
           return await ref.read(connectionNotifierProvider.notifier).reconnect(activeProfile);
         },
         AsyncData(value: Disconnected()) || AsyncError() => () async {
-          
-          // --- ПРИНУДИТЕЛЬНЫЕ НАСТРОЙКИ (ИГНОРИРУЯ КЭШ) ---
-          try {
-            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-              await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.proxy);
-            } else if (Platform.isAndroid || Platform.isIOS) {
-              await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tun);
-              if (Platform.isAndroid) {
-                await ref.read(Preferences.perAppProxyMode.notifier).update(PerAppProxyMode.include);
-                await ref.read(Preferences.includeApps.notifier).update([
-                  "org.telegram.messenger",
-                  "org.telegram.messenger.web",
-                  "org.telegram.plus",
-                  "org.thunderdog.challegram",
-                  "nekox.messenger",
-                  "org.mdgram.messenger",
-                  "ir.ilmili.telegraph",
-                  "exv.telegram.messenger",
-                  "tw.nekomimi.nekogram",
-                ]);
-              }
-            }
-          } catch (e) {
-            debugPrint("Failed to override settings: $e");
-          }
-          // --- КОНЕЦ ПРИНУДИТЕЛЬНЫХ НАСТРОЕК ---
-
           // Если профиля нет — качаем его незаметно прямо по клику на кнопку
           if (ref.read(activeProfileProvider).valueOrNull == null) {
             try {
@@ -95,7 +65,7 @@ class ConnectionButton extends HookConsumerWidget {
               debugPrint("Failed to auto-add profile");
             }
           }
-          // Запускаем туннель
+          // Сразу запускаем туннель
           return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
         },
         AsyncData(value: Connected()) => () async {
