@@ -18,6 +18,8 @@ import 'package:hiddify/features/settings/notifier/config_option/config_option_n
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+import 'package:hiddify/features/profile/model/profile_entity.dart';
 
 // TODO: rewrite
 class ConnectionButton extends HookConsumerWidget {
@@ -122,13 +124,24 @@ class ConnectionButton extends HookConsumerWidget {
           return await ref.read(connectionNotifierProvider.notifier).reconnect(activeProfile);
         },
         AsyncData(value: Disconnected()) || AsyncError() => () async {
+          // Если профиля нет — качаем его незаметно прямо по клику на кнопку
           if (ref.read(activeProfileProvider).valueOrNull == null) {
-            await ref.read(dialogNotifierProvider.notifier).showNoActiveProfile();
-            ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile();
+            try {
+              await ref.read(addProfileNotifierProvider.notifier).addManual(
+                url: "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_SS%2BAll_RUS.txt",
+                userOverride: const UserOverride(
+                  name: "VPN Russia",
+                  updateInterval: 4,
+                ),
+              );
+              // Даем движку секунду на парсинг и назначение профиля активным
+              await Future.delayed(const Duration(milliseconds: 1000));
+            } catch (e) {
+              debugPrint("Failed to auto-add profile");
+            }
           }
-          if (await ref.read(dialogNotifierProvider.notifier).showExperimentalFeatureNotice()) {
-            return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
-          }
+          // Сразу запускаем туннель без всплывающих окон (игнорируя предупреждения о бета-функциях)
+          return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
         },
         AsyncData(value: Connected()) => () async {
           if (requiresReconnect == true &&
