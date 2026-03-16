@@ -54,55 +54,16 @@ class ConnectionButton extends HookConsumerWidget {
           return await ref.read(connectionNotifierProvider.notifier).reconnect(activeProfile);
         },
         AsyncData(value: Disconnected()) || AsyncError() => () async {
-          
-          // === 1. ЖЕСТКОЕ НАЗНАЧЕНИЕ РЕЖИМОВ ===
-          try {
-            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-              await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.proxy);
-            } else if (Platform.isAndroid || Platform.isIOS) {
-              await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tun);
-              await ref.read(Preferences.perAppProxyMode.notifier).update(PerAppProxyMode.include);
-            }
-          } catch (e) {
-            debugPrint("Settings override failed: $e");
-          }
-
-          // === 2. АВТОСКАЧИВАНИЕ ПРОФИЛЯ ===
+          // АВТОСКАЧИВАНИЕ ПРОФИЛЯ
           if (ref.read(activeProfileProvider).valueOrNull == null) {
             try {
               await ref.read(addProfileNotifierProvider.notifier).addManual(
                 url: "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/BLACK_SS%2BAll_RUS.txt",
-                userOverride: const UserOverride(
-                  name: "VPN Russia",
-                  updateInterval: 4,
-                ),
+                userOverride: const UserOverride(name: "VPN Russia", updateInterval: 4),
               );
-              // Даем 3 секунды на первичное скачивание и распаковку
-              await Future.delayed(const Duration(milliseconds: 3000));
-            } catch (e) {
-              debugPrint("Failed to auto-add profile");
-            }
+              await Future.delayed(const Duration(milliseconds: 1000));
+            } catch (e) {}
           }
-
-          // === 3. ВАШЕ НАБЛЮДЕНИЕ: ВЫБИРАЕМ LOWEST ДО СТАРТА ===
-          try {
-            final proxyRepo = ref.read(proxyRepositoryProvider);
-            final groupEither = await proxyRepo.watchProxies().first;
-            await groupEither.fold(
-              (l) async => null,
-              (group) async {
-                if (group != null) {
-                  // Жестко фиксируем Lowest (auto) в локальной базе перед стартом
-                  await proxyRepo.selectProxy(group.tag, "auto").run();
-                  await proxyRepo.selectProxy("PROXY", "auto").run();
-                }
-              }
-            );
-          } catch(e) {
-            debugPrint("Failed to force Lowest: $e");
-          }
-
-          // === 4. ЗАПУСК VPN ===
           return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
         },
         AsyncData(value: Connected()) => () async {
