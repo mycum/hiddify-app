@@ -37,29 +37,15 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
         if (next case AsyncData(value: final Connected _)) {
           await ref.read(hapticServiceProvider.notifier).heavyImpact();
 
-          // ---> НАШ ПАТЧ ДЛЯ АВТОВЫБОРА LOWEST <---
-          Future.delayed(const Duration(milliseconds: 2000), () async {
-            try {
-              final proxyRepo = ref.read(proxyRepositoryProvider);
-              final groupEither = await proxyRepo.watchProxies().first;
-              
-              await groupEither.match(
-                (err) async => loggy.warning("Cannot fetch proxy groups"),
-                (group) async {
-                  if (group != null) {
-                    loggy.info("Forcing auto (Lowest)...");
-                    // Теперь мы дожидаемся ответа от ядра
-                    await proxyRepo.selectProxy(group.tag, "auto").run();
-                    // Дублируем для дефолтной группы
-                    await proxyRepo.selectProxy("PROXY", "auto").run();
-                  }
-                }
-              );
-            } catch (e) {
-              loggy.error("Failed to force auto proxy", e);
+          if (Platform.isAndroid && !ref.read(Preferences.storeReviewedByUser)) {
+            if (await InAppReview.instance.isAvailable()) {
+              InAppReview.instance.requestReview();
+              ref.read(Preferences.storeReviewedByUser.notifier).update(true);
             }
-          });
-          // ---> КОНЕЦ ПАТЧА <---
+          }
+        }
+      }
+    });
 
           if (Platform.isAndroid && !ref.read(Preferences.storeReviewedByUser)) {
             if (await InAppReview.instance.isAvailable()) {
