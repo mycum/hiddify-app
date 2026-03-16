@@ -20,6 +20,7 @@ import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
+import 'package:hiddify/features/proxy/data/proxy_repository.dart';
 
 // TODO: rewrite
 class ConnectionButton extends HookConsumerWidget {
@@ -124,7 +125,7 @@ class ConnectionButton extends HookConsumerWidget {
           return await ref.read(connectionNotifierProvider.notifier).reconnect(activeProfile);
         },
         AsyncData(value: Disconnected()) || AsyncError() => () async {
-          // Если профиля нет — качаем его незаметно прямо по клику на кнопку
+          // 1. Если профиля нет — качаем его незаметно
           if (ref.read(activeProfileProvider).valueOrNull == null) {
             try {
               await ref.read(addProfileNotifierProvider.notifier).addManual(
@@ -134,14 +135,33 @@ class ConnectionButton extends HookConsumerWidget {
                   updateInterval: 4,
                 ),
               );
-              // Даем движку секунду на парсинг и назначение профиля активным
               await Future.delayed(const Duration(milliseconds: 1000));
             } catch (e) {
               debugPrint("Failed to auto-add profile");
             }
           }
-          // Сразу запускаем туннель без всплывающих окон (игнорируя предупреждения о бета-функциях)
-          return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
+
+          // 2. Запускаем туннель
+          await ref.read(connectionNotifierProvider.notifier).toggleConnection();
+
+          // 3. Ждем 2 секунды, чтобы ядро успело подняться, и жестко переключаем на Lowest (auto)
+          await Future.delayed(const Duration(seconds: 2));
+          try {
+            final proxyRepo = ref.read(proxyRepositoryProvider);
+            final activeGroupEither = await proxyRepo.watchProxies().first;
+            
+            activeGroupEither.match(
+              (error) => debugPrint("Error fetching groups"),
+              (group) {
+                if (group != null) {
+                  // "auto" — это внутреннее имя Hiddify для режима Lowest (URL-Test)
+                  proxyRepo.selectProxy(group.tag, "auto").run();
+                }
+              }
+            );
+          } catch (e) {
+             debugPrint("Failed to force Lowest: $e");
+          }
         },
         AsyncData(value: Connected()) => () async {
           if (requiresReconnect == true &&
