@@ -437,7 +437,7 @@ abstract class ConfigOptions {
       clashApiPort: ref.watch(clashApiPort),
       enableTun: mode == ServiceMode.tun,
       // enableTunService: mode == false, //ServiceMode.tunService,
-      setSystemProxy: mode == ServiceMode.systemProxy,
+      setSystemProxy: mode == ServiceMode.Proxy,
       bypassLan: ref.watch(bypassLan),
       allowConnectionFromLan: ref.watch(allowConnectionFromLan),
       enableFakeDns: ref.watch(enableFakeDns),
